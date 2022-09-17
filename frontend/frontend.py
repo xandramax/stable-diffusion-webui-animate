@@ -36,7 +36,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                                                 value=txt2img_defaults['cfg_scale'], elem_id='cfg_slider')
                         txt2img_seed = gr.Textbox(label="Seed (blank to randomize)", lines=1, max_lines=1,
                                                   value=txt2img_defaults["seed"])
-                        txt2img_batch_count = gr.Slider(minimum=1, maximum=50, step=1,
+                        txt2img_batch_count = gr.Slider(minimum=1, maximum=1800, step=1,
                                                         label='Number of images to generate',
                                                         value=txt2img_defaults['n_iter'])
 
@@ -254,9 +254,6 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                                                 value=img2img_defaults['cfg_scale'], elem_id='cfg_slider')
                         img2img_seed = gr.Textbox(label="Seed (blank to randomize)", lines=1, max_lines=1,
                                                   value=img2img_defaults["seed"])
-                        img2img_batch_count = gr.Slider(minimum=1, maximum=50, step=1,
-                                                        label='Batch count (how many batches of images to generate)',
-                                                        value=img2img_defaults['n_iter'])
                         img2img_dimensions_info_text_box = gr.Textbox(
                             label="Aspect ratio (4:3 = 1.333 | 16:9 = 1.777 | 21:9 = 2.333)")
                     with gr.Column():
@@ -268,8 +265,11 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                                                                 'k_heun', 'k_lms'],
                                                        value=img2img_defaults['sampler_name'])
 
-                        img2img_denoising = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Denoising Strength',
-                                                      value=img2img_defaults['denoising_strength'])
+                        img2img_denoisingA = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Denoising Strength - Beginning',
+                                                      value=img2img_defaults['denoising_strength_min'])
+
+                        img2img_denoisingB = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Denoising Strength - End',
+                                                      value=img2img_defaults['denoising_strength_max'])
 
                         img2img_toggles = gr.CheckboxGroup(label='', choices=img2img_toggles,
                                                            value=img2img_toggle_defaults, type="index")
@@ -336,8 +336,8 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                 img2img_func = img2img
                 img2img_inputs = [img2img_prompt, img2img_image_editor_mode, img2img_mask,
                                   img2img_mask_blur_strength, img2img_steps, img2img_sampling, img2img_toggles,
-                                  img2img_realesrgan_model_name, img2img_batch_count, img2img_cfg,
-                                  img2img_denoising, img2img_seed, img2img_height, img2img_width, img2img_resize,
+                                  img2img_realesrgan_model_name, img2img_cfg,
+                                  img2img_denoisingA, img2img_denoisingB, img2img_seed, img2img_height, img2img_width, img2img_resize,
                                   img2img_image_editor, img2img_image_mask, img2img_embeddings]
                 img2img_outputs = [output_img2img_gallery, output_img2img_seed, output_img2img_params,
                                    output_img2img_stats]
@@ -359,8 +359,8 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                 def img2img_submit_params():
                     # print([img2img_prompt, img2img_image_editor_mode, img2img_mask,
                     #              img2img_mask_blur_strength, img2img_steps, img2img_sampling, img2img_toggles,
-                    #              img2img_realesrgan_model_name, img2img_batch_count, img2img_cfg,
-                    #              img2img_denoising, img2img_seed, img2img_height, img2img_width, img2img_resize,
+                    #              img2img_realesrgan_model_name, img2img_cfg,
+                    #              img2img_denoisingA, img2img_denoisingB, img2img_seed, img2img_height, img2img_width, img2img_resize,
                     #              img2img_image_editor, img2img_image_mask, img2img_embeddings])
                     return (img2img_func,
                             img2img_inputs,
@@ -518,9 +518,13 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                                                                 label='Classifier Free Guidance Scale (how strongly the image should follow the prompt)',
                                                                 value=imgproc_defaults['cfg_scale'],
                                                                 visible=RealESRGAN is not None)
-                                        imgproc_denoising = gr.Slider(minimum=0.0, maximum=1.0, step=0.01,
-                                                                      label='Denoising Strength',
-                                                                      value=imgproc_defaults['denoising_strength'],
+                                        imgproc_denoisingA = gr.Slider(minimum=0.0, maximum=1.0, step=0.01,
+                                                                      label='Denoising Strength (Beginning)',
+                                                                      value=imgproc_defaults['denoising_strength_min'],
+                                                                      visible=RealESRGAN is not None)
+                                        imgproc_denoisingB = gr.Slider(minimum=0.0, maximum=1.0, step=0.01,
+                                                                      label='Denoising Strength (End)',
+                                                                      value=imgproc_defaults['denoising_strength_max'],
                                                                       visible=RealESRGAN is not None)
                                         imgproc_height = gr.Slider(minimum=64, maximum=2048, step=64, label="Height",
                                                                    value=imgproc_defaults["height"],
@@ -537,7 +541,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x, imgproc=lambda
                                             [imgproc_source, imgproc_folder, imgproc_prompt, imgproc_toggles,
                                              imgproc_upscale_toggles, imgproc_realesrgan_model_name, imgproc_sampling,
                                              imgproc_steps, imgproc_height,
-                                             imgproc_width, imgproc_cfg, imgproc_denoising, imgproc_seed,
+                                             imgproc_width, imgproc_cfg, imgproc_denoisingA, imgproc_denoisingB, imgproc_seed,
                                              imgproc_gfpgan_strength, imgproc_ldsr_steps, imgproc_ldsr_pre_downSample,
                                              imgproc_ldsr_post_downSample],
                                             [imgproc_output])

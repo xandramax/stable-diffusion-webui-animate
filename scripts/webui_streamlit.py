@@ -218,7 +218,7 @@ def generation_callback(img, i=0):
 		st.session_state["progress_bar_text"].text(
                         f"Running step: {i+1 if i+1 < st.session_state.sampling_steps else st.session_state.sampling_steps}/{st.session_state.sampling_steps} {percent if percent < 100 else 100}%")
 	else:
-		round_sampling_steps = round(st.session_state.sampling_steps * st.session_state["denoising_strength"])
+		round_sampling_steps = round(st.session_state.sampling_steps * st.session_state["denoising_strength_max"])
 		percent = int(100 * float(i+1 if i+1 < round_sampling_steps else round_sampling_steps)/float(round_sampling_steps))
 		st.session_state["progress_bar_text"].text(
                         f"""Running step: {i+1 if i+1 < round_sampling_steps else round_sampling_steps}/{round_sampling_steps} {percent if percent < 100 else 100}%""")
@@ -605,7 +605,7 @@ def check_prompt_length(prompt, comments):
 
 def save_sample(image, sample_path_i, filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
                 normalize_prompt_weights, use_GFPGAN, write_info_files, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback,
-                save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, save_individual_images):
+                save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, save_individual_images):
 
 	filename_i = os.path.join(sample_path_i, filename)
 
@@ -620,7 +620,8 @@ def save_sample(image, sample_path_i, filename, jpg_sample, prompts, seeds, widt
 			metadata.add_text("SD:cfg_scale", str(cfg_scale))
 			metadata.add_text("SD:normalize_prompt_weights", str(normalize_prompt_weights))
 			if init_img is not None:
-				metadata.add_text("SD:denoising_strength", str(denoising_strength))
+				metadata.add_text("SD:denoising_strength_min", str(denoising_strength_min))
+				metadata.add_text("SD:denoising_strength_max", str(denoising_strength_max))
 			metadata.add_text("SD:GFPGAN", str(use_GFPGAN and st.session_state["GFPGAN"] is not None))
 			image.save(f"{filename_i}.png", pnginfo=metadata)
 		else:
@@ -661,7 +662,8 @@ def save_sample(image, sample_path_i, filename, jpg_sample, prompts, seeds, widt
 			# Not yet any use for these, but they bloat up the files:
 			#info_dict["init_img"] = init_img
 			#info_dict["init_mask"] = init_mask
-			info_dict["denoising_strength"] = denoising_strength
+			info_dict["denoising_strength_min"] = denoising_strength_min
+			info_dict["denoising_strength_max"] = denoising_strength_max
 			info_dict["resize_mode"] = resize_mode
 		with open(f"{filename_i}.yaml", "w", encoding="utf8") as f:
 			yaml.dump(info_dict, f, allow_unicode=True, width=10000)
@@ -769,7 +771,7 @@ def process_images(
         outpath, func_init, func_sample, prompt, seed, sampler_name, save_grid, batch_size,
         n_iter, steps, cfg_scale, width, height, prompt_matrix, use_GFPGAN, use_RealESRGAN, realesrgan_model_name,
         fp=None, ddim_eta=0.0, normalize_prompt_weights=True, init_img=None, init_mask=None,
-        keep_mask=False, mask_blur_strength=3, denoising_strength=0.75, resize_mode=None, uses_loopback=False,
+        keep_mask=False, mask_blur_strength=3, denoising_strength_min=0.75, denoising_strength_max=0.75, resize_mode=None, uses_loopback=False,
         uses_random_seed_loopback=False, sort_samples=True, write_info_files=True, jpg_sample=False,
         variant_amount=0.0, variant_seed=None, save_individual_images: bool = True):
 	"""this is the main loop that both txt2img and img2img use; it calls func_init once inside all the scopes and func_sample once per batch"""
@@ -958,7 +960,7 @@ def process_images(
 					save_sample(gfpgan_image, sample_path_i, gfpgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
                                                     normalize_prompt_weights, use_GFPGAN, write_info_files, prompt_matrix, init_img, uses_loopback,
                                                     uses_random_seed_loopback, save_grid, sort_samples, sampler_name, ddim_eta,
-                                                    n_iter, batch_size, i, denoising_strength, resize_mode, save_individual_images=False)
+                                                    n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, save_individual_images=False)
 
 					output_images.append(gfpgan_image) #287
 					if simple_templating:
@@ -979,11 +981,11 @@ def process_images(
 
 					#save_sample(image, sample_path_i, original_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
 							#normalize_prompt_weights, use_GFPGAN, write_info_files, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback, skip_save,
-							#save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode)
+							#save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode)
 
 					save_sample(esrgan_image, sample_path_i, esrgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
                                                     normalize_prompt_weights, use_GFPGAN, write_info_files, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback,
-                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, save_individual_images=False)
+                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, save_individual_images=False)
 
 					output_images.append(esrgan_image) #287
 					if simple_templating:
@@ -1006,7 +1008,7 @@ def process_images(
 
 					save_sample(gfpgan_esrgan_image, sample_path_i, gfpgan_esrgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
                                                     normalize_prompt_weights, False, write_info_files, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback,
-                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, save_individual_images=False)
+                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, save_individual_images=False)
 
 					output_images.append(gfpgan_esrgan_image) #287
 
@@ -1016,7 +1018,7 @@ def process_images(
 				if save_individual_images:
 					save_sample(image, sample_path_i, filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale, 
                                                     normalize_prompt_weights, use_GFPGAN, write_info_files, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback,
-                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, save_individual_images)
+                                                    save_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, save_individual_images)
 
 					if not use_GFPGAN or not use_RealESRGAN:
 						output_images.append(image)
@@ -1061,7 +1063,7 @@ def process_images(
 
 	info = f"""
                 {prompt}
-                Steps: {steps}, Sampler: {sampler_name}, CFG scale: {cfg_scale}, Seed: {seed}{', Denoising strength: '+str(denoising_strength) if init_img is not None else ''}{', GFPGAN' if use_GFPGAN and st.session_state["GFPGAN"] is not None else ''}{', '+realesrgan_model_name if use_RealESRGAN and st.session_state["RealESRGAN"] is not None else ''}{', Prompt Matrix Mode.' if prompt_matrix else ''}""".strip()
+                Steps: {steps}, Sampler: {sampler_name}, CFG scale: {cfg_scale}, Seed: {seed}{', Denoising strengthA: '+str(denoising_strength_min) if init_img is not None else ''}{', GFPGAN' if use_GFPGAN and st.session_state["GFPGAN"] is not None else ''}{', '+realesrgan_model_name if use_RealESRGAN and st.session_state["RealESRGAN"] is not None else ''}{', Prompt Matrix Mode.' if prompt_matrix else ''}""".strip()
 	stats = f'''
                 Took { round(time_diff, 2) }s total ({ round(time_diff/(len(all_prompts)),2) }s per image)
                 Peak memory usage: { -(mem_max_used // -1_048_576) } MiB / { -(mem_total // -1_048_576) } MiB / { round(mem_max_used/mem_total*100, 3) }%'''
@@ -1114,7 +1116,7 @@ def resize_image(resize_mode, im, width, height):
 
 def img2img(prompt: str = '', init_info: any = None, init_info_mask: any = None, mask_mode: int = 0, mask_blur_strength: int = 3, 
             ddim_steps: int = 50, sampler_name: str = 'DDIM',
-            n_iter: int = 1,  cfg_scale: float = 7.5, denoising_strength: float = 0.8,
+            n_iter: int = 1,  cfg_scale: float = 7.5, denoising_strength_min: float = 0.8, denoising_strength_maxS: float = 0.8,
             seed: int = -1, height: int = 512, width: int = 512, resize_mode: int = 0, fp = None,
             variant_amount: float = None, variant_seed: int = None, ddim_eta:float = 0.0,
             write_info_files:bool = True, RealESRGAN_model: str = "RealESRGAN_x4plus_anime_6B",
@@ -1168,8 +1170,9 @@ def img2img(prompt: str = '', init_info: any = None, init_info_mask: any = None,
 	init_mask = None
 	keep_mask = False
 
-	assert 0. <= denoising_strength <= 1., 'can only work with strength in [0.0, 1.0]'
-	t_enc = int(denoising_strength * ddim_steps)
+	assert 0. <= denoising_strength_min <= 1., 'can only work with strength in [0.0, 1.0]'
+	assert 0. <= denoising_strength_max <= 1., 'can only work with strength in [0.0, 1.0]'
+	t_enc = int(denoising_strength_max * ddim_steps)
 
 	def init():
 
@@ -1282,7 +1285,8 @@ def img2img(prompt: str = '', init_info: any = None, init_info_mask: any = None,
                                 init_mask=init_mask,
                                 keep_mask=keep_mask,
                                 mask_blur_strength=mask_blur_strength,
-                                denoising_strength=denoising_strength,
+                                denoising_strength_min=denoising_strength_min,
+                                denoising_strength_max=denoising_strength_max,
                                 resize_mode=resize_mode,
                                 uses_loopback=loopback,
                                 uses_random_seed_loopback=random_seed_loopback,
@@ -1311,7 +1315,8 @@ def img2img(prompt: str = '', init_info: any = None, init_info_mask: any = None,
 			else:
 				seed = seed_to_int(None)
 
-			denoising_strength = max(denoising_strength * 0.95, 0.1)
+			denoising_strength_min = max(denoising_strength_min * 0.95, 0.1)
+			denoising_strength_max = max(denoising_strength_max * 0.95, 0.1)
 			history.append(init_img)
 
 		output_images = history
@@ -1343,7 +1348,8 @@ def img2img(prompt: str = '', init_info: any = None, init_info_mask: any = None,
                         init_mask=init_mask,
                         keep_mask=keep_mask,
                         mask_blur_strength=2,
-                        denoising_strength=denoising_strength,
+                        denoising_strength_min=denoising_strength_min,
+                        denoising_strength_max=denoising_strength_max,
                         resize_mode=resize_mode,
                         uses_loopback=loopback,
                         sort_samples=group_by_prompt,
@@ -1680,7 +1686,8 @@ def layout():
 								       It increases the VRAM usage a lot but if you have enough VRAM it can reduce the time it takes to finish generation as more images are generated at once.\
 								       Default: 1")
 
-					st.session_state["denoising_strength"] = st.slider("Denoising Strength:", value=defaults.img2img.denoising_strength, min_value=0.01, max_value=1.0, step=0.01)
+					st.session_state["denoising_strength_min"] = st.slider("Denoising Strength (Beginning):", value=defaults.img2img.denoising_strength_min, min_value=0.01, max_value=1.0, step=0.01)
+					st.session_state["denoising_strength_max"] = st.slider("Denoising Strength (End):", value=defaults.img2img.denoising_strength_max, min_value=0.01, max_value=1.0, step=0.01)
 
 
 			with col2_img2img_layout:
@@ -1730,7 +1737,7 @@ def layout():
 					try:
 						output_images, seed, info, stats = img2img(prompt=prompt, init_info=new_img, ddim_steps=st.session_state["sampling_steps"],
 											   sampler_name=st.session_state["sampler_name"], n_iter=batch_count,
-											   cfg_scale=cfg_scale, denoising_strength=st.session_state["denoising_strength"], variant_seed=variant_seed,
+											   cfg_scale=cfg_scale, denoising_strength_min=st.session_state["denoising_strength_min"], denoising_strength_max=st.session_state["denoising_strength_max"], variant_seed=variant_seed,
 											   seed=seed, width=width, height=height, fp=defaults.general.fp, variant_amount=variant_amount, 
 											   ddim_eta=0.0, write_info_files=write_info_files, RealESRGAN_model=RealESRGAN_model,
 											   separate_prompts=separate_prompts, normalize_prompt_weights=normalize_prompt_weights,

@@ -22,8 +22,8 @@ txt2img:
   cfg_scale: 7.5
   # Leave blank for random seed:
   seed:
-  height: 512
-  width: 512
+  height: 768
+  width: 768
   # Textual inversion embeddings file path:
   fp:
 
@@ -48,7 +48,8 @@ img2img:
   n_iter: 1
   batch_size: 1
   cfg_scale: 5.0
-  denoising_strength: 0.75
+  denoising_strength_min: 0.75
+  denoising_strength_max: 0.75
   # 0: Keep masked area
   # 1: Regenerate only masked area
   mask_mode: 0
@@ -58,8 +59,8 @@ img2img:
   resize_mode: 0
   # Leave blank for random seed:
   seed:
-  height: 512
-  width: 512
+  height: 768
+  width: 768
   # Textual inversion embeddings file path:
   fp:
 

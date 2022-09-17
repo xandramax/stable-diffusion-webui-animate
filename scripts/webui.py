@@ -600,7 +600,7 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
         if opt.save_metadata and not skip_metadata:
             metadata = PngInfo()
             metadata.add_text("SD:prompt", prompts[i])
-            metadata.add_text("SD:seed", str(seeds[i]))
+            metadata.add_text("SD:seed", str(seeds[0]))
             metadata.add_text("SD:width", str(width))
             metadata.add_text("SD:height", str(height))
             metadata.add_text("SD:sampler_name", str(sampler_name))
@@ -645,7 +645,7 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
             target="txt2img" if init_img is None else "img2img",
             prompt=prompts[i], ddim_steps=steps, toggles=toggles, sampler_name=sampler_name,
             ddim_eta=ddim_eta, n_iter=n_iter, batch_size=batch_size, cfg_scale=cfg_scale,
-            seed=seeds[i], width=width, height=height
+            seed=seeds[0], width=width, height=height
         )
         if init_img is not None:
             # Not yet any use for these, but they bloat up the files:
@@ -781,7 +781,7 @@ def process_images(
         outpath, func_init, func_sample, prompt, seed, sampler_name, skip_grid, skip_save, batch_size,
         n_iter, steps, cfg_scale, width, height, prompt_matrix, use_GFPGAN, use_RealESRGAN, realesrgan_model_name,
         fp, ddim_eta=0.0, do_not_save_grid=False, normalize_prompt_weights=True, init_img=None, init_mask=None,
-        keep_mask=False, mask_blur_strength=3, denoising_strength=0.75, resize_mode=None, uses_loopback=False,
+        keep_mask=False, mask_blur_strength=3, denoising_strength_min=0.75, denoising_strength_max=0.75, resize_mode=None, uses_loopback=False,
         uses_random_seed_loopback=False, sort_samples=True, write_info_files=True, write_sample_info_to_log_file=False, jpg_sample=False,
         variant_amount=0.0, variant_seed=None,imgProcessorTask=False, job_info: JobInfo = None):
     """this is the main loop that both txt2img and img2img use; it calls func_init once inside all the scopes and func_sample once per batch"""
@@ -915,7 +915,7 @@ def process_images(
             cur_variant_amount = variant_amount 
             if variant_amount == 0.0:
                 # we manually generate all input noises because each one should have a specific seed
-                x = create_random_tensors(shape, seeds=seeds)
+                x = create_random_tensors(shape, seeds=[original_seeds[0]])
             else: # we are making variants
                 # using variant_seed as sneaky toggle,
                 # when not None or '' use the variant_seed
@@ -935,7 +935,7 @@ def process_images(
                 # finally, slerp base_x noise to target_x noise for creating a variant
                 x = slerp(device, max(0.0, min(1.0, cur_variant_amount)), base_x, target_x)
 
-            samples_ddim = func_sample(init_data=init_data, x=x, conditioning=c, unconditional_conditioning=uc, sampler_name=sampler_name)
+            samples_ddim = func_sample(init_data=init_data, x=x, steps=steps, conditioning=c, unconditional_conditioning=uc, sampler_name=sampler_name)
 
             if opt.optimized:
                 modelFS.to(device)
@@ -952,7 +952,7 @@ def process_images(
                     else:
                         seed_used = f"{seed}-{variant_seed}"
                 else:
-                   seed_used = f"{current_seeds[i]}"
+                   seed_used = f"{current_seeds[0]}"
                 if sort_samples:
                     sanitized_prompt = sanitized_prompt[:128] #200 is too long
                     sample_path_i = os.path.join(sample_path, sanitized_prompt)
@@ -979,7 +979,8 @@ def process_images(
                     gfpgan_filename = original_filename + '-gfpgan'
                     save_sample(gfpgan_image, sample_path_i, gfpgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale,
 normalize_prompt_weights, use_GFPGAN, write_info_files, write_sample_info_to_log_file, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback, skip_save,
-skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strengthA, denoising_strengthB, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, skip_metadata=True)
                     output_images.append(gfpgan_image) #287
                     #if simple_templating:
                     #    grid_captions.append( captions[i] + "\ngfpgan" )
@@ -993,7 +994,8 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
                     esrgan_image = Image.fromarray(esrgan_sample)
                     save_sample(esrgan_image, sample_path_i, esrgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale,
 normalize_prompt_weights, use_GFPGAN,write_info_files, write_sample_info_to_log_file, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback, skip_save,
-skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strengthA, denoising_strengthB, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, skip_metadata=True)
                     output_images.append(esrgan_image) #287
                     #if simple_templating:
                     #    grid_captions.append( captions[i] + "\nesrgan" )
@@ -1009,7 +1011,8 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
                     gfpgan_esrgan_image = Image.fromarray(gfpgan_esrgan_sample)
                     save_sample(gfpgan_esrgan_image, sample_path_i, gfpgan_esrgan_filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale,
 normalize_prompt_weights, use_GFPGAN, write_info_files, write_sample_info_to_log_file, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback, skip_save,
-skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strengthA, denoising_strengthB, resize_mode, skip_metadata=True)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, skip_metadata=True)
                     output_images.append(gfpgan_esrgan_image) #287
                     #if simple_templating:
                     #    grid_captions.append( captions[i] + "\ngfpgan_esrgan" )
@@ -1021,7 +1024,8 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
                 if not skip_save:
                     save_sample(image, sample_path_i, filename, jpg_sample, prompts, seeds, width, height, steps, cfg_scale,
 normalize_prompt_weights, use_GFPGAN, write_info_files, write_sample_info_to_log_file, prompt_matrix, init_img, uses_loopback, uses_random_seed_loopback, skip_save,
-skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength, resize_mode, False)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strengthA, denoising_strengthB, resize_mode, False)
+skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoising_strength_min, denoising_strength_max, resize_mode, False)
                 if add_original_image or not simple_templating:
                     output_images.append(image)
                     if simple_templating:
@@ -1032,6 +1036,7 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
                 modelFS.to("cpu")
                 while(torch.cuda.memory_allocated()/1e6 >= mem):
                     time.sleep(1)
+            steps += 1
 
         if (prompt_matrix or not skip_grid) and not do_not_save_grid:
             grid = None
@@ -1072,7 +1077,8 @@ skip_grid, sort_samples, sampler_name, ddim_eta, n_iter, batch_size, i, denoisin
         'entities': [{'entity':str(v), 'start': full_string.find(f"{k}:"),'end': full_string.find(f"{k}:") + len(f"{k} ")} for k,v in args_and_names.items()]
      }
 #     info = f"""
-# {prompt} --seed {seed} --W {width} --H {height}  -s {steps} -C {cfg_scale} --sampler {sampler_name}  {', Denoising strength: '+str(denoising_strength) if init_img is not None else ''}{', GFPGAN' if use_GFPGAN and GFPGAN is not None else ''}{', '+realesrgan_model_name if use_RealESRGAN and RealESRGAN is not None else ''}{', Prompt Matrix Mode.' if prompt_matrix else ''}""".strip()
+# {prompt} --seed {seed} --W {width} --H {height}  -s {steps} -C {cfg_scale} --sampler {sampler_name}  {', Denoising strength A: '+str(denoising_strengthA) if init_img is not None else ''}{', GFPGAN' if use_GFPGAN and GFPGAN is not None else ''}{', '+realesrgan_model_name if use_RealESRGAN and RealESRGAN is not None else ''}{', Prompt Matrix Mode.' if prompt_matrix else ''}""".strip()
+# {prompt} --seed {seed} --W {width} --H {height}  -s {steps} -C {cfg_scale} --sampler {sampler_name}  {', Denoising strength A: '+str(denoising_strength_min) if init_img is not None else ''}{', GFPGAN' if use_GFPGAN and GFPGAN is not None else ''}{', '+realesrgan_model_name if use_RealESRGAN and RealESRGAN is not None else ''}{', Prompt Matrix Mode.' if prompt_matrix else ''}""".strip()
     stats = f'''
 Took { round(time_diff, 2) }s total ({ round(time_diff/(len(all_prompts)),2) }s per image)
 Peak memory usage: { -(mem_max_used // -1_048_576) } MiB / { -(mem_total // -1_048_576) } MiB / { round(mem_max_used/mem_total*100, 3) }%'''
@@ -1226,12 +1232,11 @@ class Flagging(gr.FlaggingCallback):
 
 
 def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_strength: int, ddim_steps: int, sampler_name: str,
-            toggles: List[int], realesrgan_model_name: str, n_iter: int,  cfg_scale: float, denoising_strength: float,
             seed: int, height: int, width: int, resize_mode: int, init_info: any = None, init_info_mask: any = None, fp = None, job_info: JobInfo = None):
     # print([prompt, image_editor_mode, init_info, init_info_mask, mask_mode,
     #                               mask_blur_strength, ddim_steps, sampler_name, toggles,
-    #                               realesrgan_model_name, n_iter, cfg_scale,
-    #                               denoising_strength, seed, height, width, resize_mode,
+    #                               realesrgan_model_name, cfg_scale,
+    #                               denoising_strength_min, denoising_strength_max, seed, height, width, resize_mode,
     #                               fp])
     outpath = opt.outdir_img2img or opt.outdir or "outputs/img2img-samples"
     err = False
@@ -1293,9 +1298,6 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
         init_mask = None
         keep_mask = False
 
-    assert 0. <= denoising_strength <= 1., 'can only work with strength in [0.0, 1.0]'
-    t_enc = int(denoising_strength * ddim_steps)
-
     def init():
         image = init_img.convert("RGB")
         image = resize_image(resize_mode, image, width, height)
@@ -1334,6 +1336,7 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
         init_image = repeat(init_image, '1 ... -> b ...', b=batch_size)
         init_latent = (model if not opt.optimized else modelFS).get_first_stage_encoding((model if not opt.optimized else modelFS).encode_first_stage(init_image))  # move to latent space
         
+
         if opt.optimized:
             mem = torch.cuda.memory_allocated()/1e6
             modelFS.to("cpu")
@@ -1342,18 +1345,18 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
 
         return init_latent, mask,
 
-    def sample(init_data, x, conditioning, unconditional_conditioning, sampler_name):
-        t_enc_steps = t_enc
+    def sample(init_data, x, steps, conditioning, unconditional_conditioning, sampler_name):
+        
         obliterate = False
-        if ddim_steps == t_enc_steps:
-            t_enc_steps = t_enc_steps - 1
+        if ddim_steps == steps:
+            steps = steps - 1
             obliterate = True
 
         if sampler_name != 'DDIM':
             x0, z_mask = init_data
 
             sigmas = sampler.model_wrap.get_sigmas(ddim_steps)
-            noise = x * sigmas[ddim_steps - t_enc_steps - 1]
+            noise = x * sigmas[ddim_steps - steps - 1]
 
             xi = x0 + noise
 
@@ -1362,15 +1365,14 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 random = torch.randn(z_mask.shape, device=xi.device)
                 xi = (z_mask * noise) + ((1-z_mask) * xi)
 
-            sigma_sched = sigmas[ddim_steps - t_enc_steps - 1:]
+            sigma_sched = sigmas[ddim_steps - steps - 1:]
             model_wrap_cfg = CFGMaskedDenoiser(sampler.model_wrap)
             samples_ddim = K.sampling.__dict__[f'sample_{sampler.get_sampler_name()}'](model_wrap_cfg, xi, sigma_sched, extra_args={'cond': conditioning, 'uncond': unconditional_conditioning, 'cond_scale': cfg_scale, 'mask': z_mask, 'x0': x0, 'xi': xi}, disable=False)
         else:
-
             x0, z_mask = init_data
 
             sampler.make_schedule(ddim_num_steps=ddim_steps, ddim_eta=0.0, verbose=False)
-            z_enc = sampler.stochastic_encode(x0, torch.tensor([t_enc_steps]*batch_size).to(device))
+            z_enc = sampler.stochastic_encode(x0, torch.tensor([steps]*batch_size).to(device))
 
             # Obliterate masked image
             if z_mask is not None and obliterate:
@@ -1378,13 +1380,18 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 z_enc = (z_mask * random) + ((1-z_mask) * z_enc)
 
                                 # decode it
-            samples_ddim = sampler.decode(z_enc, conditioning, t_enc_steps,
+            samples_ddim = sampler.decode(z_enc, conditioning, steps,
                                             unconditional_guidance_scale=cfg_scale,
                                             unconditional_conditioning=unconditional_conditioning,
                                             z_mask=z_mask, x0=x0)
         return samples_ddim
 
-
+    assert 0. <= denoising_strength_min <= 1., 'can only work with strength in [0.0, 1.0]'
+    assert 0. <= denoising_strength_max <= 1., 'can only work with strength in [0.0, 1.0]'
+    t_enc_steps_min = int(denoising_strength_min * ddim_steps)
+    t_enc_steps_max = int(denoising_strength_max * ddim_steps)
+    n_iter = t_enc_steps_max - t_enc_steps_min
+    ddim_steps = t_enc_steps_min
 
     if loopback:
         output_images, info = None, None
@@ -1428,7 +1435,8 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 init_mask=init_mask,
                 keep_mask=keep_mask,
                 mask_blur_strength=mask_blur_strength,
-                denoising_strength=denoising_strength,
+                denoising_strength_min=denoising_strength_min,
+                denoising_strength_max=denoising_strength_max,
                 resize_mode=resize_mode,
                 uses_loopback=loopback,
                 uses_random_seed_loopback=random_seed_loopback,
@@ -1458,7 +1466,8 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 seed = seed + 1
             else:
                 seed = seed_to_int(None)
-            denoising_strength = max(denoising_strength * 0.95, 0.1)
+            denoising_strength_min = max(denoising_strength_min * 0.95, 0.1)
+            denoising_strength_max = max(denoising_strength_max * 0.95, 0.1)
             history.append(init_img)
 
         if not skip_grid:
@@ -1497,7 +1506,8 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
             init_mask=init_mask,
             keep_mask=keep_mask,
             mask_blur_strength=mask_blur_strength,
-            denoising_strength=denoising_strength,
+            denoising_strength_min=denoising_strength_min,
+            denoising_strength_max=denoising_strength_max,
             resize_mode=resize_mode,
             uses_loopback=loopback,
             sort_samples=sort_samples,
@@ -1519,7 +1529,7 @@ prompt_parser = re.compile("""
     (?:             # non-capture group
     :+              # match one or more ':' characters
     (?P<weight>     # capture group for 'weight'
-    -?\d*\.{0,1}\d+ # match positive or negative integer or decimal number
+    -?\d+(?:\.\d+)? # match positive or negative integer or decimal number
     )?              # end weight capture group, make optional
     \s*             # strip spaces after weight
     |               # OR
@@ -1565,7 +1575,7 @@ def slerp(device, t, v0:torch.Tensor, v1:torch.Tensor, DOT_THRESHOLD=0.9995):
 
 
 def imgproc(image,image_batch,imgproc_prompt,imgproc_toggles, imgproc_upscale_toggles,imgproc_realesrgan_model_name,imgproc_sampling,
- imgproc_steps, imgproc_height, imgproc_width, imgproc_cfg, imgproc_denoising, imgproc_seed,imgproc_gfpgan_strength,imgproc_ldsr_steps,imgproc_ldsr_pre_downSample,imgproc_ldsr_post_downSample):
+ imgproc_steps, imgproc_height, imgproc_width, imgproc_cfg, imgproc_denoisingA, imgproc_denoisingB, imgproc_seed,imgproc_gfpgan_strength,imgproc_ldsr_steps,imgproc_ldsr_pre_downSample,imgproc_ldsr_post_downSample):
 
     outpath = opt.outdir_imglab or opt.outdir or "outputs/imglab-samples"
     output = []
@@ -1610,11 +1620,12 @@ def imgproc(image,image_batch,imgproc_prompt,imgproc_toggles, imgproc_upscale_to
         width = int(imgproc_width)
         height = int(imgproc_height)
         cfg_scale = float(imgproc_cfg)
-        denoising_strength = float(imgproc_denoising)
+        denoising_strength_min = float(imgproc_denoisingA)
+        denoising_strength_max = float(imgproc_denoisingB)
         skip_save = True
         skip_grid = True
         prompt = imgproc_prompt
-        t_enc = int(denoising_strength * ddim_steps)
+        t_enc = int(denoising_strength_max * ddim_steps)
         sampler_name = imgproc_sampling
 
 
@@ -1638,7 +1649,8 @@ def imgproc(image,image_batch,imgproc_prompt,imgproc_toggles, imgproc_upscale_to
         init_img = result
         init_mask = None
         keep_mask = False
-        assert 0. <= denoising_strength <= 1., 'can only work with strength in [0.0, 1.0]'
+        assert 0. <= denoising_strength_min <= 1., 'can only work with strength in [0.0, 1.0]'
+        assert 0. <= denoising_strength_max <= 1., 'can only work with strength in [0.0, 1.0]'
 
         def init():
             image = init_img.convert("RGB")
@@ -1783,7 +1795,8 @@ def imgproc(image,image_batch,imgproc_prompt,imgproc_toggles, imgproc_upscale_to
                     init_mask=None,
                     keep_mask=False,
                     mask_blur_strength=None,
-                    denoising_strength=denoising_strength,
+                    denoising_strength_min=denoising_strength_min,
+                    denoising_strength_max=denoising_strength_max,
                     resize_mode=resize_mode,
                     uses_loopback=False,
                     sort_samples=True,
@@ -2035,7 +2048,8 @@ imgproc_defaults = {
     'seed': '',
     'height': 512,
     'width': 512,
-    'denoising_strength': 0.30
+    'denoising_strength_min': 0.30,
+    'denoising_strength_max': 0.30
 }
 imgproc_mode_toggles = [
     'Fix Faces',
@@ -2077,19 +2091,20 @@ img2img_resize_modes = [
 
 img2img_defaults = {
     'prompt': '',
-    'ddim_steps': 50,
+    'ddim_steps': 500,
     'toggles': [1, 4, 5],
-    'sampler_name': 'k_lms',
+    'sampler_name': 'ddim',
     'ddim_eta': 0.0,
     'n_iter': 1,
     'batch_size': 1,
     'cfg_scale': 5.0,
-    'denoising_strength': 0.75,
+    'denoising_strength_min': 0.25,
+    'denoising_strength_max': 0.8,
     'mask_mode': 0,
     'resize_mode': 0,
     'seed': '',
-    'height': 512,
-    'width': 512,
+    'height': 768,
+    'width': 768,
     'fp': None,
 }
 
