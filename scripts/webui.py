@@ -1391,7 +1391,6 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
     t_enc_steps_min = int(denoising_strength_min * ddim_steps)
     t_enc_steps_max = int(denoising_strength_max * ddim_steps)
     n_iter = t_enc_steps_max - t_enc_steps_min
-    ddim_steps = t_enc_steps_min
 
     if loopback:
         output_images, info = None, None
@@ -1420,7 +1419,7 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 skip_grid=skip_grid,
                 batch_size=1,
                 n_iter=1,
-                steps=ddim_steps,
+                steps=t_enc_steps_min,
                 cfg_scale=cfg_scale,
                 width=width,
                 height=height,
@@ -1492,7 +1491,7 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
             skip_grid=skip_grid,
             batch_size=batch_size,
             n_iter=n_iter,
-            steps=ddim_steps,
+            steps=t_enc_steps_min,
             cfg_scale=cfg_scale,
             width=width,
             height=height,
@@ -2091,15 +2090,15 @@ img2img_resize_modes = [
 
 img2img_defaults = {
     'prompt': '',
-    'ddim_steps': 500,
+    'ddim_steps': 250,
     'toggles': [1, 4, 5],
-    'sampler_name': 'ddim',
+    'sampler_name': 'DDIM',
     'ddim_eta': 0.0,
     'n_iter': 1,
     'batch_size': 1,
     'cfg_scale': 5.0,
     'denoising_strength_min': 0.25,
-    'denoising_strength_max': 0.8,
+    'denoising_strength_max': 0.80,
     'mask_mode': 0,
     'resize_mode': 0,
     'seed': '',
