@@ -46,6 +46,8 @@ parser.add_argument("--skip-save", action='store_true', help="do not save indivi
 parser.add_argument('--no-job-manager', action='store_true', help="Don't use the experimental job manager on top of gradio", default=False)
 parser.add_argument("--max-jobs", type=int, help="Maximum number of concurrent 'generate' commands", default=1)
 parser.add_argument("--tiling", action='store_true', help="Generate tiling images", default=False)
+parser.add_argument("--frames", type=int, help="number of frames to generate", default=40)
+parser.add_argument("--zoom-factor", type=float, help="how much each new frame should zoom into last one", default=1.1)
 opt = parser.parse_args()
 
 #Should not be needed anymore
@@ -170,6 +172,14 @@ elif grid_format[0] == 'webp':
         grid_lossless = True
         grid_quality = abs(grid_quality)
 
+def zoom_at(img, x, y, zoom):
+    w, h = img.size
+    zoom2 = zoom * 2
+    print(x - w / zoom2)
+    print()
+    img = img.crop((x - w / zoom2, y - h / zoom2, 
+                    x + w / zoom2, y + h / zoom2))
+    return img.resize((w, h), Image.LANCZOS)
 
 def chunk(it, size):
     it = iter(it)
@@ -1762,17 +1772,17 @@ def img2img(prompt: str, image_editor_mode: str, mask_mode: str, mask_blur_stren
                 correction_target=correction_target
             )
 
+            result_img = output_images.pop()
+            history.append(result_img)
+
+            init_img = zoom_at(result_img, result_img.height / 2, result_img.width / 2, opt.zoom_factor)
+
             if initial_seed is None:
                 initial_seed = seed
 
-            init_img = output_images[0]
-
-            if not random_seed_loopback:
-                seed = seed + 1
-            else:
+            if random_seed_loopback:
                 seed = seed_to_int(None)
-            denoising_strength = max(denoising_strength * 0.95, 0.1)
-            history.append(init_img)
+
 
         if not skip_grid:
             grid_count = get_next_sequence_number(outpath, 'grid-')
